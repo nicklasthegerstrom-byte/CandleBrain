@@ -1,33 +1,10 @@
-import yfinance as yf
-from ta.momentum import RSIIndicator
+from core.indicators import (
+    get_stock_data,
+    add_rsi,
+    generate_rsi_signal,
+    add_macd, generate_macd_signal, combine_signals
+)
 
-def get_stock_data(ticker: str):
-    """Fetches daily price data for a given stock."""
-    return yf.download(ticker, period="6mo", interval="1d")
-
-
-def add_rsi(data):
-    close = data["Close"].astype(float).squeeze()
-
-    data["RSI_14"] = RSIIndicator(close, window=14).rsi()
-    data["RSI_50"] = RSIIndicator(close, window=50).rsi()
-
-    return data
-
-def generate_rsi_signal(rsi_fast, rsi_slow):
-    # Setup identifiering
-    if rsi_fast < 30 and rsi_slow > rsi_fast:
-        return "SETUP: Oversold short-term but trend stronger. Watch for reversal."
-
-    # Bekräftad vändning (RSI passerar 30 från undersidan)
-    if rsi_fast > 30 and rsi_fast < rsi_slow:
-        return "BUY: Reversal confirmation."
-
-    # Överköpt situation
-    if rsi_fast > 70 and rsi_fast < rsi_slow:
-        return "SELL: Short-term exhaustion."
-
-    return "WAIT"
 
 def main():
     ticker = input("Enter stock ticker: ").upper()
@@ -39,16 +16,42 @@ def main():
         print("No data found. Check symbol or internet.")
         return
 
+    # Lägg till RSI och MACD i samma dataframe
     df = add_rsi(df)
+    df = add_macd(df)
 
+    # Plocka ut senaste RSI-värdena
     latest_rsi_14 = df["RSI_14"].iloc[-1]
     latest_rsi_50 = df["RSI_50"].iloc[-1]
 
-    decision = generate_rsi_signal(latest_rsi_14, latest_rsi_50)
+    print(f"RSI 14-day: {round(latest_rsi_14, 2)}")
+    print(f"RSI 50-day: {round(latest_rsi_50, 2)}")
 
-    print(f"RSI (14): {round(latest_rsi_14, 2)}")
-    print(f"RSI (50): {round(latest_rsi_50, 2)}")
-    print(f"Signal: {decision}\n")
+    # Generera RSI-signal
+    
+
+    # Plocka ut senaste MACD-värdena (bara för att se dem)
+    latest_macd = df["MACD_Line"].iloc[-1]
+    latest_signal = df["Signal_Line"].iloc[-1]
+    latest_hist = df["MACD_Hist"].iloc[-1]
+
+    print(f"\nMACD Line: {round(latest_macd, 4)}")
+    print(f"Signal Line: {round(latest_signal, 4)}")
+    print(f"Histogram: {round(latest_hist, 4)}")
+
+    prev_macd = df["MACD_Line"].iloc[-2]
+    prev_signal = df["Signal_Line"].iloc[-2]
+
+
+    rsi_decision = generate_rsi_signal(latest_rsi_14, latest_rsi_50)
+    print(f"RSI Signal: {rsi_decision}")
+    
+    macd_signal = generate_macd_signal(latest_macd, latest_signal, prev_macd, prev_signal)
+    print(f"MACD Signal: {macd_signal}")
+
+    combined_signal = combine_signals(rsi_decision, macd_signal)
+    print(f"\n→ Combined Signal: {combined_signal}")
+
 
 if __name__ == "__main__":
     main()
